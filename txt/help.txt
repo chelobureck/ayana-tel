@@ -1,0 +1,6 @@
+<b>/about</b> – <i>узнать про нас и про Ayana</i>  
+<b>/contact</b> – <i>связаться с нами</i>  
+<b>/gyde</b> – <i>гайд по использованию бота</i>  
+<b>/help</b> – <i>список команд</i>  
+<b>/test</b> – <i>протестировать Ayana в Telegram</i>  
+<b>/ayana</b> – <i>ссылка на Ayana в Whatsapp</i>
