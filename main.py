@@ -17,14 +17,28 @@ bot = telebot.TeleBot(settings.TOKEN)
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    b = types.InlineKeyboardMarkup()
-    b.row(btn.help_button(), btn.about_button())
-    b.row(btn.main_menu_button())
-    bot.send_message(
-        message.chat.id, 
-        "Привет, я Ayana. Я создана для помощи вашему ребенку с темами, кторые им могут быть непонятны.", 
-        reply_markup=b # кнопки для стартового меню
-        )
+    # b = types.InlineKeyboardMarkup()
+    # b.row(btn.help_button(), btn.about_button())
+    # b.row(btn.main_menu_button())
+    b2 = types.ReplyKeyboardMarkup()
+    b2.row(types.KeyboardButton("Помощь"), types.KeyboardButton("О боте"))
+    b2.row(types.KeyboardButton("Меню"))
+    # bot.send_message(
+    #     message.chat.id, 
+    #     "Привет, я Ayana. Я создана для помощи вашему ребенку с темами, кторые ему могут быть непонятны.", 
+    #     reply_markup=b # кнопки для стартового меню
+    #     )
+    bot.register_next_step_handler(message, one_click)
+
+def one_click(messaga): # кнопки для основного меню
+    if messaga.text == "Помощь":
+        win.help_window(messaga)
+    elif messaga.text == "О боте":
+        win.about_window(messaga)
+    elif messaga.text == "Меню":
+        win.menu_window(messaga)
+    else:
+        bot.send_message(messaga.chat.id, "Пожалуйста, используйте кнопки для навигации по боту.", )
 
 @bot.message_handler(commands=['menu'])
 def menu(message):
