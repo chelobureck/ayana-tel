@@ -1,3 +1,5 @@
 pydantic
 pydantic_settings
 pyTelegramBotAPI
+g4f
+sqlalchemy
