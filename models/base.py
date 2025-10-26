@@ -5,9 +5,13 @@ from typing import AsyncGenerator, Dict, Any
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from config.settings import get_settings
-
-settings = get_settings()
+try:
+    from config.settings import get_settings
+    settings = get_settings()
+except Exception:
+    # Fallback для случаев когда .env не настроен
+    from pydantic_settings import BaseSettings
+    settings = BaseSettings()
 
 
 class Base(DeclarativeBase):
@@ -40,21 +44,25 @@ if "sqlite" in DATABASE_URL:
 else:
     # try to decide about SSL for asyncpg
     env_value = (os.getenv("ENVIRONMENT") or getattr(settings, "ENVIRONMENT", "")).lower()
+    
+    # Проверяем нужно ли использовать SSL
+    ssl_verify = (os.getenv("POSTGRES_SSL_VERIFY") or getattr(settings, "POSTGRES_SSL_VERIFY", "true")).lower() == "true"
+    
     must_use_ssl = (
         env_value in ("production", "prod")
         or "aws" in env_value
         or "render" in env_value
         or ("rds.amazonaws.com" in DATABASE_URL)
-    )
+    ) and ssl_verify
+    
     if must_use_ssl:
-        ssl_verify = (os.getenv("POSTGRES_SSL_VERIFY") or "true").lower() == "true"
         ssl_ctx = ssl.create_default_context()
         if not ssl_verify:
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
         connect_args["ssl"] = ssl_ctx  # type: ignore
     else:
-        connect_args["ssl"] = None
+        connect_args["ssl"] = False  # Отключаем SSL
 
     engine = create_async_engine(DATABASE_URL, connect_args=connect_args, **engine_kwargs)
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from sqlalchemy import String, Integer, ForeignKey, DateTime, Text, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSON as PGJSON
 
 from models.base import Base
 
@@ -26,6 +27,6 @@ class ChildInfo(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    additional: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # свободная информация
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    additional: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)  # свободная информация
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)

@@ -1,0 +1,41 @@
+version: '3.8'
+
+# Docker Compose для разработки (без PostgreSQL, только SQLite)
+
+services:
+  # Redis для кэширования
+  redis:
+    image: redis:7-alpine
+    container_name: ayana-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - ayana-network
+
+  # Telegram бот (только SQLite)
+  bot:
+    build: .
+    container_name: ayana-bot-dev
+    depends_on:
+      - redis
+    environment:
+      - TOKEN=${TOKEN}
+      - USE_POSTGRES=false
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+    volumes:
+      - .:/app
+      - ./local.db:/app/local.db
+    restart: unless-stopped
+    networks:
+      - ayana-network
+
+volumes:
+  redis_dev_data:
+
+networks:
+  ayana-network:
+    driver: bridge
+

@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # Redis для кэширования контекста
+  redis:
+    image: redis:7-alpine
+    container_name: ayana-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ayana-network
+
+  # PostgreSQL для хранения данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: ayana-postgres
+    environment:
+      POSTGRES_USER: ayana_user
+      POSTGRES_PASSWORD: ayana_pass
+      POSTGRES_DB: ayana_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "ssl=off"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ayana_user -d ayana_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ayana-network
+
+  # Telegram бот
+  bot:
+    build: .
+    container_name: ayana-bot
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - TOKEN=${TOKEN}
+      - USE_POSTGRES=true
+      - POSTGRES_USER=ayana_user
+      - POSTGRES_PASSWORD=ayana_pass
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=ayana_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - POSTGRES_SSL_VERIFY=false
+    volumes:
+      - ./local.db:/app/local.db
+    restart: unless-stopped
+    networks:
+      - ayana-network
+    entrypoint: >
+      sh -c "
+        python init_db.py &&
+        python main.py
+      "
+
+  # FastAPI сервер (опционально)
+  api:
+    build: .
+    container_name: ayana-api
+    command: python run_api.py
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - USE_POSTGRES=true
+      - POSTGRES_USER=ayana_user
+      - POSTGRES_PASSWORD=ayana_pass
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=ayana_db
+      - REDIS_URL=redis://redis:6379/0
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - ENVIRONMENT=production
+      - POSTGRES_SSL_VERIFY=false
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    profiles:
+      - api
+    networks:
+      - ayana-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  ayana-network:
+    driver: bridge
+

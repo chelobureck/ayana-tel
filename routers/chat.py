@@ -1,24 +1,34 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from models.user import User
 from models.chat import ChatMessage
 from models.base import get_session
 from utils.auth import get_current_user
 from service.chat_service import ChatService
-from schemas import (
-    # создайте минимальные схемы в schemas/chat.py (ниже)
-)
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
 
+class MessageRequest(BaseModel):
+    conversation_id: str
+    text: str
+
+
+async def get_current_user_with_session(
+    x_user_id: Optional[int] = Header(None),
+    session: AsyncSession = Depends(get_session)
+) -> User:
+    """Wrapper для get_current_user с session"""
+    return await get_current_user(x_user_id, session)
+
+
 @router.post("/send")
 async def send_message(
-    conversation_id: str,
-    text: str,
-    current_user: User = Depends(get_current_user),
+    request: MessageRequest,
+    current_user: User = Depends(get_current_user_with_session),
     session: AsyncSession = Depends(get_session)
 ):
     """
@@ -27,14 +37,14 @@ async def send_message(
     - пушит в Redis (контекст)
     - запускает извлечение данных о ребёнке и сохраняет ChildInfo
     """
-    if not conversation_id:
+    if not request.conversation_id:
         raise HTTPException(status_code=400, detail="conversation_id required")
     # save DB message
-    msg = await ChatService.save_message_db(session, conversation_id, "user", text, user_id=current_user.id)
+    msg = await ChatService.save_message_db(session, request.conversation_id, "user", request.text, user_id=current_user.id)
     # push to redis for context
-    await ChatService.push_to_redis(conversation_id, "user", text, meta={"id": msg.id})
+    await ChatService.push_to_redis(request.conversation_id, "user", request.text, meta={"id": msg.id})
     # try extract child info
-    await ChatService.extract_and_save_child_info(session, current_user, text)
+    await ChatService.extract_and_save_child_info(session, current_user, request.text)
     # flush/commit
     await session.commit()
     return {"ok": True, "message_id": msg.id}

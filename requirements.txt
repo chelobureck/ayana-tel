@@ -3,3 +3,9 @@ pydantic_settings
 pyTelegramBotAPI
 g4f
 sqlalchemy
+redis>=5.0.0
+asyncpg
+aiosqlite
+fastapi
+uvicorn
+python-dotenv

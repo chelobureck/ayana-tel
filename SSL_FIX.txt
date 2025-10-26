@@ -1,0 +1,17 @@
+Исправлена ошибка SSL подключения к PostgreSQL
+
+Изменения:
+1. В docker-compose.yml добавлено:
+   - command: ["postgres", "-c", "ssl=off"] для PostgreSQL
+   - POSTGRES_SSL_VERIFY=false для контейнера бота
+
+2. В models/base.py добавлена логика:
+   - SSL отключается когда POSTGRES_SSL_VERIFY=false
+   - SSL используется только для production окружений с SSL сертификатами
+
+Теперь запустите:
+
+docker-compose up -d
+
+Бот должен запуститься без ошибок подключения!
+

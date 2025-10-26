@@ -1,0 +1,15 @@
+Исправлена ошибка переполнения Integer для telegram_id
+
+Проблема: Telegram ID (5877412161) превышает диапазон int32
+
+Решение: Изменен тип данных с Integer на BigInteger в models/user.py
+
+Пересоздайте базу данных:
+
+docker-compose down -v
+docker-compose up -d
+
+Или войдите в контейнер и пересоздайте таблицы:
+docker-compose exec bot bash
+python init_db.py
+
