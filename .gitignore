@@ -1,5 +1,3 @@
-ui/__pycache__/
-fetch/__pycache__/
-reply_comand/__pycache__/
 venv313/
 .env
+*/__pycache__/*

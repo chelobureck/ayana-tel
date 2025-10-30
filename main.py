@@ -1,6 +1,7 @@
 import telebot
 from telebot import types 
 import asyncio
+import threading
 from config.settings import get_settings
 from ui import (
     buttons as btn,
@@ -8,7 +9,7 @@ from ui import (
 )
 from reply_comand import open_file as of
 from service.chat_service import ChatService
-from fetch import g4f
+from service.ai_service import AiService
 from utils.redis_client import get_messages
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.base import async_session
@@ -20,15 +21,21 @@ settings = get_settings()
 
 bot = telebot.TeleBot(settings.TOKEN)
 
+# Единый фоновый event loop для всех async операций (DB/Redis/AI)
+_BACKGROUND_LOOP = asyncio.new_event_loop()
+
+def _loop_worker(loop: asyncio.AbstractEventLoop) -> None:
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+_loop_thread = threading.Thread(target=_loop_worker, args=(_BACKGROUND_LOOP,), daemon=True)
+_loop_thread.start()
+
 
 def run_async(coro):
-    """Запускает асинхронную функцию из синхронного кода"""
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+    """Выполняет coroutine в едином фоновом event loop (без конфликтов циклов)."""
+    fut = asyncio.run_coroutine_threadsafe(coro, _BACKGROUND_LOOP)
+    return fut.result()
 
 
 async def get_or_create_user(telegram_id: int, username: str | None, first_name: str | None) -> User:
@@ -86,6 +93,42 @@ def gyde(message):
     win.gyde_window(message)
 
 
+@bot.message_handler(commands=['set_name'])
+def set_name(message):
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        bot.send_message(message.chat.id, "Укажи имя через пробел: /set_name Алиса")
+        return
+    name = parts[1].strip()
+    async def save_name():
+        async with async_session() as session:
+            user = await get_or_create_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+            child = await ChatService.extract_and_save_child_info(session, user, f"имя: {name}")
+            await session.commit()
+    run_async(save_name())
+    bot.send_message(message.chat.id, f"Имя ребенка сохранено: {name}")
+
+
+@bot.message_handler(commands=['set_age'])
+def set_age(message):
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        bot.send_message(message.chat.id, "Укажи возраст через пробел: /set_age 8")
+        return
+    try:
+        age = int(parts[1].strip())
+    except Exception:
+        bot.send_message(message.chat.id, "Возраст должен быть числом, например: /set_age 8")
+        return
+    async def save_age():
+        async with async_session() as session:
+            user = await get_or_create_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+            child = await ChatService.extract_and_save_child_info(session, user, f"возраст: {age} лет")
+            await session.commit()
+    run_async(save_age())
+    bot.send_message(message.chat.id, f"Возраст ребенка сохранен: {age}")
+
+
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     """Обработка текстовых сообщений пользователя"""
@@ -125,12 +168,17 @@ def handle_text(message):
             await ChatService.push_to_redis(conversation_id, "user", message.text, meta={"id": msg.id})
             
             await session.commit()
-        
-        # Получаем ответ от AI
-        ai_response = await g4f.get_ai_response(
+        # Формируем system prompt с учетом профиля ребенка
+        async with async_session() as session:
+            child = await ChatService.get_child_info(session, user.id)
+            system_prompt = ChatService.build_system_prompt(child)
+
+        # Получаем ответ от AI через сервис
+        ai_response = await AiService.generate_reply(
             user_message=message.text,
             conversation_id=conversation_id,
-            context=context
+            context=context,
+            system_prompt=system_prompt,
         )
         
         # Сохраняем ответ бота в БД

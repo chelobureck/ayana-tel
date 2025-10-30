@@ -68,3 +68,23 @@ class ChatService:
                 child.updated_at = datetime.utcnow()
                 await session.flush()
         return child
+
+    @staticmethod
+    async def get_child_info(session: AsyncSession, user_id: int) -> Optional[ChildInfo]:
+        q = await session.execute(select(ChildInfo).where(ChildInfo.user_id == user_id))
+        return q.scalars().first()
+
+    @staticmethod
+    def build_system_prompt(child: Optional[ChildInfo]) -> str:
+        base = (
+            "Ты — доброжелательный репетитор Ayana. Объясняй просто, по шагам, "
+            "с примерами из жизни. Поддерживай интерес и давай маленькие задания."
+        )
+        if not child:
+            return base + " Если возраст неизвестен, используй уровень 3-5 класса и уточняй по необходимости."
+        extra: List[str] = []
+        if child.name:
+            extra.append(f"Ребенка зовут {child.name}.")
+        if child.age:
+            extra.append(f"Возраст {child.age} лет — адаптируй сложность под этот возраст.")
+        return base + " " + " ".join(extra)
