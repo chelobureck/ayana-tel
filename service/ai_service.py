@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 import asyncio
 
 import g4f
+from g4f import Messages
 
 from service.chat_service import ChatService
 
@@ -16,7 +17,7 @@ class AiService:
         system_prompt: str,
     ) -> str:
         # Формируем сообщения для модели
-        messages: List[Dict[str, str]] = []
+        messages: Messages = []
         messages.append({"role": "system", "content": system_prompt})
 
         if context:
