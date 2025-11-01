@@ -18,7 +18,7 @@ class AiService:
     ) -> str:
         # Формируем сообщения для модели
         messages: Messages = []
-        messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "system","content": f"{system_prompt}"})
 
         if context:
             for msg in context[-10:]:
